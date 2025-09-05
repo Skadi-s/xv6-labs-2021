@@ -3,7 +3,27 @@
 #include "user/user.h"
 #include "kernel/fs.h"
 
-void find(char *path, char *filename) {
+int
+match(const char *regex, const char *str) {
+  if (*regex == '\0' && *str == '\0')
+    return 1;
+  if (*regex == '*') {
+    if (*(regex + 1) == '\0')
+      return 1;
+    for (int i = 0; *(str + i) != '\0'; i++) {
+      if (match(regex + 1, str + i))
+        return 1;
+    }
+    return 0;
+  }
+  if (*regex == '?' || *regex == *str) {
+    return match(regex + 1, str + 1);
+  }
+  return 0;
+}
+
+void 
+find(char *path, char *regex) {
   char buf[512], *p;
   int fd;
   struct dirent de;
@@ -47,19 +67,20 @@ void find(char *path, char *filename) {
       continue;
     }
     if (st.type == T_FILE) {
-      if (strcmp(de.name, filename) == 0) {
+      if (match(regex, de.name)) {
         printf("%s\n", buf);
       }
     }
     else if (st.type == T_DIR) {
-      find(buf, filename);
+      find(buf, regex);
     }
   }
   close(fd);
   return;
 }
 
-int main(int argc, char *argv[]) {
+int 
+main(int argc, char *argv[]) {
   if (argc != 3) {
     fprintf(2, "Usage: find <path> <filename>\n");
     exit(1);
