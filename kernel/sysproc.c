@@ -99,7 +99,6 @@ sys_uptime(void)
 uint64
 sys_trace(void)
 {
-    //TODO
     int mask;
     if (argint(0, &mask) < 0) {
       return -1;
@@ -109,4 +108,11 @@ sys_trace(void)
     p->tracemask = mask;
     release(&p->lock);
     return 0;
+}
+
+uint64
+sys_sysinfo(void)
+{
+  //TODO
+  return 0;
 }
