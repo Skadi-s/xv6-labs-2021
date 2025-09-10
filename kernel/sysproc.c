@@ -100,5 +100,13 @@ uint64
 sys_trace(void)
 {
     //TODO
+    int mask;
+    if (argint(0, &mask) < 0) {
+      return -1;
+    }
+    struct proc *p = myproc();
+    acquire(&p->lock);
+    p->tracemask = mask;
+    release(&p->lock);
     return 0;
 }
