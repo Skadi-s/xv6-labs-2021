@@ -81,7 +81,7 @@ kalloc(void)
   return (void*)r;
 }
 
-// Get the number of free pages.
+// Get the bytes of free mem.
 int
 kfreemem(void)
 {
@@ -92,5 +92,5 @@ kfreemem(void)
     n++;
   }
   release(&kmem.lock);
-  return n;
+  return n * 4096;
 }
