@@ -88,9 +88,23 @@ sys_pgaccess(void)
   // accessed bits of the pages. Each bit in the array corresponds to a page, with
   // the least significant bit of the first byte representing the first page.
   uint64 start_va;
-  int num_pages;
-  uint64 user_addr;
-  if(argaddr(0, &start_va) < 0 || argint(1, &num_pages) < 0 || argaddr(2, &user_addr) < 0)
+  int page_num;
+  uint64 result_va;
+
+  if(argaddr(0, &start_va) < 0)
+    return -1;
+  if(argint(1, &page_num) < 0)
+    return -1;
+  if(argaddr(2, &result_va) < 0)
+    return -1;
+  // check page_num validity
+  if(page_num < 0 || page_num > 64)
+    return -1;
+  
+  struct proc *p = myproc();
+  if (p == 0)
+    return -1;
+  if (pgaccess(start_va, page_num, result_va) < 0)
     return -1;
   return 0;
 }

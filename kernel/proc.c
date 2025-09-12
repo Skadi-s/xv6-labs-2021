@@ -673,3 +673,31 @@ procdump(void)
     printf("\n");
   }
 }
+
+int
+pgaccess(uint64 start_va, int page_num, uint64 result_va)
+{
+  // lab pgtbl: your code here.
+  // Return value: a bit mask of length 'len' indicating
+  // whether each page is accessed (1) or not (0).
+  // The least significant bit of the return value
+  // indicates whether the first page is accessed.
+  // If any error, return -1.
+  struct proc *p = myproc();
+  uint64 accessed_mask = 0;
+  for (int i = 0; i < page_num; i++) {
+    uint64 va = start_va + i * PGSIZE;
+    if (va >= p->sz)
+      return -1;
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if (pte == 0)
+      return -1;
+    if ((*pte & PTE_A) != 0) {
+      accessed_mask |= (1 << i);
+      *pte &= ~PTE_A; // clear the accessed bit
+    }
+  }
+  if (either_copyout(1, result_va, (char *)&accessed_mask, sizeof(accessed_mask)) < 0)
+    return -1;
+  return 0;
+}
