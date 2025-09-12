@@ -81,6 +81,17 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
+  // The system call takes three arguments
+  // The first argument is the starting virtual address of the pages to be checked.
+  // The second argument is the number of pages to be checked.
+  // The third argument is the address of a user-space array that will be filled with the
+  // accessed bits of the pages. Each bit in the array corresponds to a page, with
+  // the least significant bit of the first byte representing the first page.
+  uint64 start_va;
+  int num_pages;
+  uint64 user_addr;
+  if(argaddr(0, &start_va) < 0 || argint(1, &num_pages) < 0 || argaddr(2, &user_addr) < 0)
+    return -1;
   return 0;
 }
 #endif
