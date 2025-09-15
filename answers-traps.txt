@@ -1,0 +1,5 @@
+a0 a1 a2 a3 a4 a5; a2
+li a1, 12; the compiler inline f and g
+0000000000000616;
+0x38
+
