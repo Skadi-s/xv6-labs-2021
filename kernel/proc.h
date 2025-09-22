@@ -107,5 +107,5 @@ struct proc {
   char name[16];               // Process name (debugging)
   int interval;                // Interval for alarm handler
   int ticks;                   // Number of ticks process has run
-  void (*sig_fnc)();               // Pointer to signal handler function
+  void (*handler)();               // Pointer to signal handler function
 };

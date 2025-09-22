@@ -144,7 +144,7 @@ found:
   // Initialize signal handling fields
   p->interval = 0;
   p->ticks = 0;
-  p->sig_fnc = 0;
+  p->handler = 0;
 
   return p;
 }
@@ -171,7 +171,7 @@ freeproc(struct proc *p)
   p->state = UNUSED;
   p->interval = 0;
   p->ticks = 0;
-  p->sig_fnc = 0;
+  p->handler = 0;
 }
 
 // Create a user page table for a given process,
