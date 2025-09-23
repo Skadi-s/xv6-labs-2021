@@ -148,6 +148,7 @@ found:
   p->context.sp = p->kstack + PGSIZE;
 
   // Initialize signal handling fields
+  p->ishandling = 0;
   p->interval = 0;
   p->ticks = 0;
   p->handler = 0;
@@ -178,6 +179,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+  p->ishandling = 0;
   p->interval = 0;
   p->ticks = 0;
   p->handler = 0;
