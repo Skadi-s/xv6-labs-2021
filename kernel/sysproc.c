@@ -107,7 +107,7 @@ sys_sigalarm(void)
   if(argaddr(1, &handler) < 0)
     return -1;
   struct proc *p = myproc();
-  p->ticks = interval;
+  p->interval = interval;
   p->handler = (void *)handler;
   return 0;
 }
