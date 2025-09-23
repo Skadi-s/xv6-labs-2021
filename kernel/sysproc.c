@@ -117,6 +117,7 @@ sys_sigreturn(void)
 {
   struct proc *p = myproc();
   // restore registers
-  *(p->trapframe) = *(p->trapframe_bk);
+  memmove(p->trapframe, p->trapframe_bk, sizeof(struct trapframe));
+  p->ishandling = 0;
   return 0;
 }
