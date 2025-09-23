@@ -82,8 +82,8 @@ usertrap(void)
         p->ticks = 0;
         p->trapframe->epc = (uint64)p->handler;
     }
+    yield();
   }
-  yield();
 
   usertrapret();
 }
