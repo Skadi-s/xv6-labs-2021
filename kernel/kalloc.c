@@ -87,9 +87,10 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r) {
     kmem.freelist = r->next;
     pageref_count[((uint64)r - KERNBASE)/PGSIZE] = 1; // first reference
+  }
   release(&kmem.lock);
 
   if(r)
