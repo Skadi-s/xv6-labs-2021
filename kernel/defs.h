@@ -63,6 +63,8 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void            krefinc(void *); // increment the reference count of a physical page
+void            krefdec(void *); // decrement the reference count of a physical page
 
 // log.c
 void            initlog(int, struct superblock*);
