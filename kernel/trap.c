@@ -65,6 +65,13 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 13 || r_scause() == 15) {
+    // page fault
+    uint64 va = r_stval();
+    if (cow_alloc(p->pagetable, va) < 0) {
+      printf("usertrap(): cow_alloc failed pid=%d\n", p->pid);
+      p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
