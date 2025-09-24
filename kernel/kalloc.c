@@ -23,13 +23,17 @@ struct {
   struct run *freelist;
 } kmem;
 
-// page reference count
-int pageref_count[(PHYSTOP - KERNBASE)/PGSIZE];
+struct {
+  struct spinlock lock;
+  int ref_count[(PHYSTOP - KERNBASE)/PGSIZE];
+} pageref_count;
 
 void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&pageref_count.lock, "pageref_count");
+  memset(pageref_count.ref_count, 0, sizeof(pageref_count.ref_count));
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -54,18 +58,21 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  acquire(&pageref_count.lock);
   int index = ((uint64)pa - KERNBASE)/PGSIZE;
-  if (pageref_count[index] > 1) {
-    // still has other references
-    pageref_count[index]--;
+  if(pageref_count.ref_count[index] > 1){
+    pageref_count.ref_count[index]--;
+    release(&pageref_count.lock);
     return;
   }
-  if (pageref_count[index] == 0) {
-    panic("kfree: page ref count is already 0");
+  if(pageref_count.ref_count[index] == 1){
+    pageref_count.ref_count[index] = 0;
+  } else if(pageref_count.ref_count[index] == 0) {
+    // ok
+  } else {
+    panic("kfree: reference count is negative");
   }
-  // now the page will be freed
-  pageref_count[index] = 0;
-
+  release(&pageref_count.lock);
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -89,7 +96,12 @@ kalloc(void)
   r = kmem.freelist;
   if(r) {
     kmem.freelist = r->next;
-    pageref_count[((uint64)r - KERNBASE)/PGSIZE] = 1; // first reference
+    acquire(&pageref_count.lock);
+    int index = ((uint64)r - KERNBASE)/PGSIZE;
+    if(pageref_count.ref_count[index] != 0)
+      panic("kalloc: reference count is not zero");
+    pageref_count.ref_count[index] = 1; // first reference
+    release(&pageref_count.lock);
   }
   release(&kmem.lock);
 
