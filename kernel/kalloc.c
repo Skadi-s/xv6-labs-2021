@@ -109,3 +109,42 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+// Increment the reference count for the page of physical memory
+// pointed at by pa.
+void
+krefinc(void *pa)
+{
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("krefinc");
+  acquire(&pageref_count.lock);
+  int index = ((uint64)pa - KERNBASE)/PGSIZE;
+  if(pageref_count.ref_count[index] <= 0)
+    panic("krefinc: reference count is not positive");
+  pageref_count.ref_count[index]++;
+  release(&pageref_count.lock);
+}
+
+// Decrement the reference count for the page of physical memory
+// pointed at by pa. If the reference count reaches zero, free the page.
+void
+krefdec(void *pa)
+{
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("krefdec");
+  acquire(&pageref_count.lock);
+  int index = ((uint64)pa - KERNBASE)/PGSIZE;
+  if(pageref_count.ref_count[index] > 1){
+    pageref_count.ref_count[index]--;
+    release(&pageref_count.lock);
+    return;
+  }
+  if(pageref_count.ref_count[index] == 1){
+    pageref_count.ref_count[index] = 0;
+    release(&pageref_count.lock);
+    kfree(pa);
+    return;
+  }
+  release(&pageref_count.lock);
+  panic("krefdec: reference count is already zero");
+}
