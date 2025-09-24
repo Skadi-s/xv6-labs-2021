@@ -23,6 +23,9 @@ struct {
   struct run *freelist;
 } kmem;
 
+// page reference count
+int pageref_count[(PHYSTOP - KERNBASE)/PGSIZE];
+
 void
 kinit()
 {
@@ -51,6 +54,18 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  int index = ((uint64)pa - KERNBASE)/PGSIZE;
+  if (pageref_count[index] > 1) {
+    // still has other references
+    pageref_count[index]--;
+    return;
+  }
+  if (pageref_count[index] == 0) {
+    panic("kfree: page ref count is already 0");
+  }
+  // now the page will be freed
+  pageref_count[index] = 0;
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
@@ -74,6 +89,7 @@ kalloc(void)
   r = kmem.freelist;
   if(r)
     kmem.freelist = r->next;
+    pageref_count[((uint64)r - KERNBASE)/PGSIZE] = 1; // first reference
   release(&kmem.lock);
 
   if(r)

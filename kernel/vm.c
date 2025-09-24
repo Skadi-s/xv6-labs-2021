@@ -10,7 +10,7 @@
  * the kernel's page table.
  */
 pagetable_t kernel_pagetable;
-int pageref_count[(PHYSTOP - KERNBASE)/PGSIZE] = {0};
+
 
 extern char etext[];  // kernel.ld sets this to end of kernel code.
 
@@ -154,7 +154,6 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
     *pte = PA2PTE(pa) | perm | PTE_V;
     if(a == last)
       break;
-    pageref_count[(pa - KERNBASE)/PGSIZE]++;
     a += PGSIZE;
     pa += PGSIZE;
   }
