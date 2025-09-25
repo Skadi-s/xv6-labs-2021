@@ -65,7 +65,6 @@ void            kfree(void *);
 void            kinit(void);
 int             krefget(void *); // get the reference count of a physical page, or -1 if not valid
 void            krefinc(void *); // increment the reference count of a physical page
-void            krefdec(void *); // decrement the reference count of a physical page
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -174,7 +173,7 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             is_cow(pagetable_t, uint64);
-int             cow_alloc(pagetable_t, uint64);
+void*           cow_alloc(pagetable_t, uint64);
 
 // plic.c
 void            plicinit(void);
