@@ -304,7 +304,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -323,13 +322,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if(mappages(new, i, PGSIZE, pa, flags) != 0)
       goto err;
     krefinc((void*)pa);
-    // if((mem = kalloc()) == 0)
-    //   goto err;
-    // memmove(mem, (char*)pa, PGSIZE);
-    // if(mappages(new, i, PGSIZE, pa, flags) != 0){
-    //   kfree(mem);
-    //   goto err;
-    // }
   }
   return 0;
 
@@ -362,7 +354,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
-    if (is_cow(pagetable, va0) == 1) {
+    if (is_cowpage(pagetable, va0) == 1) {
       if (cow_alloc(pagetable, va0) < 0)
         return -1;
       pa0 = walkaddr(pagetable, va0);
@@ -450,8 +442,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 }
 
 int
-is_cow(pagetable_t pagetable, uint64 va)
-{
+is_cowpage(pagetable_t pagetable, uint64 va) {
   pte_t *pte;
 
   if(va >= MAXVA)
@@ -462,42 +453,48 @@ is_cow(pagetable_t pagetable, uint64 va)
     return -1;
   if((*pte & PTE_V) == 0)
     return -1;
-  if(!(*pte & PTE_COW))
+  if((*pte & PTE_U) == 0)
+    return -1;
+  if((*pte & PTE_COW) == 0)
     return 0;
-
+  
   return 1;
 }
 
 int
-cow_alloc(pagetable_t pagetable, uint64 va)
-{
+cow_alloc(pagetable_t pagetable, uint64 va) {
   pte_t *pte;
   uint64 pa;
   uint flags;
   char *mem;
 
-  if(va >= MAXVA)
+  if (va >= MAXVA)
     return -1;
-
   pte = walk(pagetable, va, 0);
-  if(pte == 0)
+  if (pte == 0)
     return -1;
-  if((*pte & PTE_V) == 0)
+  if ((*pte & PTE_V) == 0)
     return -1;
-  if(!(*pte & PTE_COW))
+  if ((*pte & PTE_U) == 0)
     return -1;
-
+  if ((*pte & PTE_COW) == 0)
+    return -1;
   pa = PTE2PA(*pte);
   flags = PTE_FLAGS(*pte);
-  
-  if((mem = kalloc()) == 0)
+  if (krefget((void*)pa) < 1) // check if the physical page is valid
+    return -1;
+  if (krefget((void*)pa) == 1) { // if the reference count is 1, just make it writable
+    *pte = PA2PTE(pa) | (flags & ~PTE_COW) | PTE_W;
+    sfence_vma();
+    return 0;
+  }
+  // if the reference count > 1, allocate a new physical page and copy the content
+  mem = kalloc();
+  if (mem == 0)
     return -1;
   memmove(mem, (char*)pa, PGSIZE);
-
-  krefdec((void*)pa); // decrement the reference count of the old physical page
-
-  *pte = PA2PTE((uint64)mem) | (flags & ~PTE_COW) | PTE_W; // make it writable
+  kfree((void*)pa);
+  *pte = PA2PTE((uint64)mem) | (flags & ~PTE_COW) | PTE_W;
   sfence_vma();
-
   return 0;
 }
