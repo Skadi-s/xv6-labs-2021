@@ -110,6 +110,24 @@ kalloc(void)
   return (void*)r;
 }
 
+// Return the reference count for the page of physical memory
+// pointed at by pa. Returns -1 if pa is not a valid page address.
+int
+krefget(void *pa)
+{
+  if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
+    panic("krefget");
+  acquire(&pageref_count.lock);
+  int index = ((uint64)pa - KERNBASE)/PGSIZE;
+  if(pageref_count.ref_count[index] <= 0){
+    release(&pageref_count.lock);
+    return -1;
+  }
+  int ref_count = pageref_count.ref_count[index];
+  release(&pageref_count.lock);
+  return ref_count;
+}
+
 // Increment the reference count for the page of physical memory
 // pointed at by pa.
 void
