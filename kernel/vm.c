@@ -362,20 +362,10 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
     pa0 = walkaddr(pagetable, va0);
-    pte_t *pte = walk(pagetable, va0, 0);
-    if(pte == 0)
-      return -1;
-    uint flags = PTE_FLAGS(*pte);
-    if (!(flags & PTE_W) && (flags & PTE_COW)) {
-      // if the page is copy-on-write and not writable, we need to allocate
-      // a new physical page, copy the contents, and update the PTE.
-      if (cow_alloc(pagetable, va0) < 0) {
+    if (is_cow(pagetable, va0) == 1) {
+      if (cow_alloc(pagetable, va0) < 0)
         return -1;
-      }
       pa0 = walkaddr(pagetable, va0);
-      if (pa0 == 0) {
-        return -1;
-      }
     }
     if(pa0 == 0)
       return -1;
@@ -457,6 +447,25 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+is_cow(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+
+  if(va >= MAXVA)
+    return -1;
+
+  pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return -1;
+  if((*pte & PTE_V) == 0)
+    return -1;
+  if(!(*pte & PTE_COW))
+    return 0;
+
+  return 1;
 }
 
 int
