@@ -1,2 +1,6 @@
-put
-get
+when no lock
+thread1:put new key1
+thread2:put new key2
+when both of them insert into head 
+finally the head will be one of them
+and another will be invalid
