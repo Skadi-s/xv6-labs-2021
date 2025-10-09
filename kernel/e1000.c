@@ -102,7 +102,35 @@ e1000_transmit(struct mbuf *m)
   // the TX descriptor ring so that the e1000 sends it. Stash
   // a pointer so that it can be freed after sending.
   //
+  acquire(&e1000_lock);
+  uint32 tail = regs[E1000_TDT];
+
+  if (!(tx_ring[tail].status & E1000_TXD_STAT_DD)) {
+    // tx ring is full
+    printf("e1000: tx ring full\n");
+    release(&e1000_lock);
+    return -1;
+  } else if (m->len > 1518) {
+    // too long
+    printf("e1000: tx packet too long\n");
+    release(&e1000_lock);
+    return -1;
+  } else if (tx_mbufs[tail] != 0) {
+    // should not be sending a packet we haven't freed yet
+    mbuffree(tx_mbufs[tail]);
+    tx_mbufs[tail] = 0;
+  }
   
+  // fill in the descriptor
+  tx_ring[tail].addr = (uint64) m->head;
+  tx_ring[tail].length = m->len;
+  tx_ring[tail].cmd = E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS;
+  tx_ring[tail].status &= ~E1000_TXD_STAT_DD; // clear DD to indicate it's ready
+  tx_mbufs[tail] = m; // save the mbuf for later freeing
+  regs[E1000_TDT] = (tail + 1) % TX_RING_SIZE; // advance tail
+
+  release(&e1000_lock);
+
   return 0;
 }
 
