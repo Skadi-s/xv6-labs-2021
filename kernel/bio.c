@@ -137,16 +137,15 @@ bget(uint dev, uint blockno)
         b->prev = &bcache.buckets[idx].head;
         bcache.buckets[idx].head.next->prev = b;
         bcache.buckets[idx].head.next = b;
+        b->dev = dev;
+        b->blockno = blockno;
+        b->valid = 0;
+        b->refcnt = 1;
+        release(&bcache.buckets[i].lock);
+        acquiresleep(&b->lock);
+        return b;
       }
     }
-    release(&bcache.buckets[i].lock);
-    b->dev = dev;
-    b->blockno = blockno;
-    b->valid = 0;
-    b->refcnt = 1;
-    release(&bcache.buckets[idx].lock);
-    acquiresleep(&b->lock);
-    return b;
   }
   panic("bget: no buffers");
 }
