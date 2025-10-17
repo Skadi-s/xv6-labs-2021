@@ -119,13 +119,11 @@ bget(uint dev, uint blockno)
       return b;
     }
   }
-  release(&bcache.buckets[idx].lock);
 
   // If no buffers are free in this bucket
   // Borrow a buffer from other buckets (simple approach)
   for (int i = 0; i < NBUCKET; i++) {
     if (i == idx) continue; // Skip the original bucket
-    if (holding(&bcache.buckets[i].lock)) continue; // Skip if the lock is held
     acquire(&bcache.buckets[i].lock);
     for (b = bcache.buckets[i].head.prev; b != &bcache.buckets[i].head; b = b->prev) {
       if(b->refcnt == 0) {
@@ -142,6 +140,7 @@ bget(uint dev, uint blockno)
         b->valid = 0;
         b->refcnt = 1;
         release(&bcache.buckets[i].lock);
+        release(&bcache.buckets[idx].lock);
         acquiresleep(&b->lock);
         return b;
       }
