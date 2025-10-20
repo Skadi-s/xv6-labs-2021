@@ -533,7 +533,7 @@ sys_mmap(void)
   for (int i = 0; i < NVMA; i++) {
     if (p->vmas[i].used == 0) {
       p->vmas[i].used = 1;
-      p->vmas[i].addr = 0; // the kernel will choose the address
+      p->vmas[i].addr = p->sz; // kernel chooses the address
       p->vmas[i].length = length;
       p->vmas[i].prot = prot;
       p->vmas[i].flags = flags;
