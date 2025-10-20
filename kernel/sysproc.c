@@ -6,7 +6,6 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
-#include "fcntl.h"
 
 uint64
 sys_exit(void)
@@ -95,82 +94,4 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
-}
-
-uint64
-sys_mmap(void)
-{
-  uint64 addr;
-  uint64 length;
-  int prot;
-  int flags;
-  int fd;
-  uint64 offset;
-  struct file *fp;
-
-  if (argaddr(0, &addr) < 0)
-    return -1;
-  if (argaddr(1, &length) < 0)
-    return -1;
-  if (argint(2, &prot) < 0)
-    return -1;
-  if (argint(3, &flags) < 0)
-    return -1;
-  if (argfd(4, &fd, &fp) < 0)
-    return -1;
-  if (argaddr(5, &offset) < 0)
-    return -1;
-
-  // assume addr is always 0 for simplicity
-  // the kernel will choose the address
-  if (addr != 0)
-    return -1;
-  // assume port is PORT_READ or PORT_WRITE or both
-  if (prot != PROT_READ && prot != PROT_WRITE && prot != (PROT_READ | PROT_WRITE))
-    return -1;
-  // assume flags is MAP_SHARED or MAP_PRIVATE
-  if (flags != MAP_SHARED && flags != MAP_PRIVATE)
-    return -1;
-  // assume offset is always 0 for simplicity
-  if (offset != 0)
-    return -1;
-  
-  // find a free vma slot
-  struct proc *p = myproc();
-
-  // check if exceeds max virtual address
-  if (p->sz + length > MAXVA)
-    return -1;
-
-  for (int i = 0; i < NVMA; i++) {
-    if (p->vmas[i].used == 0) {
-      p->vmas[i].used = 1;
-      p->vmas[i].addr = 0; // the kernel will choose the address
-      p->vmas[i].length = length;
-      p->vmas[i].prot = prot;
-      p->vmas[i].flags = flags;
-      p->vmas[i].fd = fd;
-      p->vmas[i].offset = offset;
-      p->vmas[i].file = fp;
-      p->sz += length; // increase process size
-      filedup(fp); // increase file ref count
-      return p->vmas[i].addr; // return the address chosen by the kernel
-    }
-  }
-
-  return -1; // no free vma slot
-}
-
-uint64
-sys_munmap(void)
-{
-  uint64 addr;
-  uint64 length;
-
-  if (argaddr(0, &addr) < 0)
-    return -1;
-  if (argaddr(1, &length) < 0)
-    return -1;
-    
-  return 0;
 }
