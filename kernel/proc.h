@@ -2,6 +2,8 @@
 
 struct vma
 {
+  int used;          // whether this vma slot is used
+  struct file *file; // mapped file
   uint64 addr;        // starting address
   uint64 length;      // length in bytes
   int prot;          // protection flags
