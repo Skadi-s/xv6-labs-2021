@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "fcntl.h"
 
 uint64
 sys_exit(void)
@@ -119,8 +120,20 @@ sys_mmap(void)
   if (argaddr(5, &offset) < 0)
     return -1;
 
+  // assume addr is always 0 for simplicity
+  // the kernel will choose the address
+  if (addr != 0)
+    return -1;
+  // assume port is PORT_READ or PORT_WRITE or both
+  if (prot != PROT_READ && prot != PROT_WRITE && prot != (PROT_READ | PROT_WRITE))
+    return -1;
+  // assume flags is MAP_SHARED or MAP_PRIVATE
+  if (flags != MAP_SHARED && flags != MAP_PRIVATE)
+    return -1;
+  // assume offset is always 0 for simplicity
+  if (offset != 0)
+    return -1;
   
-
   return 0;
 }
 
