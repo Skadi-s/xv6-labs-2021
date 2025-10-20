@@ -523,6 +523,14 @@ sys_mmap(void)
   if (offset != 0)
     return -1;
   
+  // file protection check
+  if ((prot & PROT_READ) && !fp->readable)
+    return -1;
+  if ((prot & PROT_WRITE) && !fp->writable)
+    return -1;
+  if ((flags == MAP_SHARED) && (prot & PROT_WRITE) && !fp->writable)
+    return -1;
+
   // find a free vma slot
   struct proc *p = myproc();
 
