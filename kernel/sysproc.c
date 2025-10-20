@@ -106,6 +106,7 @@ sys_mmap(void)
   int flags;
   int fd;
   uint64 offset;
+  struct file *fp;
 
   if (argaddr(0, &addr) < 0)
     return -1;
@@ -115,7 +116,7 @@ sys_mmap(void)
     return -1;
   if (argint(3, &flags) < 0)
     return -1;
-  if (argint(4, &fd) < 0)
+  if (argfd(4, &fd, &fp) < 0)
     return -1;
   if (argaddr(5, &offset) < 0)
     return -1;
@@ -134,7 +135,30 @@ sys_mmap(void)
   if (offset != 0)
     return -1;
   
-  return 0;
+  // find a free vma slot
+  struct proc *p = myproc();
+
+  // check if exceeds max virtual address
+  if (p->sz + length > MAXVA)
+    return -1;
+
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used == 0) {
+      p->vmas[i].used = 1;
+      p->vmas[i].addr = 0; // the kernel will choose the address
+      p->vmas[i].length = length;
+      p->vmas[i].prot = prot;
+      p->vmas[i].flags = flags;
+      p->vmas[i].fd = fd;
+      p->vmas[i].offset = offset;
+      p->vmas[i].file = fp;
+      p->sz += length; // increase process size
+      filedup(fp); // increase file ref count
+      return p->vmas[i].addr; // return the address chosen by the kernel
+    }
+  }
+
+  return -1; // no free vma slot
 }
 
 uint64
