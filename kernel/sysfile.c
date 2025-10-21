@@ -485,6 +485,14 @@ sys_pipe(void)
   return 0;
 }
 
+/// @brief  Map length bytes starting at addr
+/// @param   addr Starting address
+/// @param   length Length in bytes
+/// @param   prot Protection flags
+/// @param   flags Mapping flags
+/// @param   fd File descriptor
+/// @param   offset Offset within the file
+/// @return  addr on success, -1 on failure
 uint64
 sys_mmap(void)
 {
@@ -526,6 +534,8 @@ sys_mmap(void)
   if ((prot & PROT_READ) && !fp->readable)
     return -1;
   if ((prot & PROT_WRITE) && !fp->writable && flags != MAP_PRIVATE)
+    return -1;
+  if (flags == MAP_SHARED && !fp->writable)
     return -1;
 
   struct proc *p = myproc();
@@ -576,8 +586,87 @@ sys_mmap(void)
   return base;
 }
 
+/// @brief  Unmap length bytes starting at addr
+/// @param   addr Starting address
+/// @param   length Length in bytes
+/// @return  0 on success, -1 on failure  
 uint64
 sys_munmap(void)
 {
+  uint64 addr;
+  uint64 length;
+
+  if (argaddr(0, &addr) < 0)
+    return -1;
+  if (argaddr(1, &length) < 0)
+    return -1;
+
+  // basic checks
+  if (addr % PGSIZE != 0)
+    return -1;
+  if (length == 0)
+    return -1;
+  
+  // page-align length
+  struct proc *p = myproc();
+  uint64 end_addr = addr + length + PGSIZE - 1;
+  end_addr = end_addr & ~(PGSIZE - 1);
+
+  // find the vma
+  int vma_idx = -1;
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used) {
+      uint64 vma_start = p->vmas[i].addr;
+      uint64 vma_end = vma_start + p->vmas[i].length;
+      if (addr == vma_start) {
+        if (end_addr == vma_end) {
+          // unmap the vma
+          fileclose(p->vmas[i].file); // release file reference
+          p->vmas[i].used = 0;
+          p->vmas[i].addr = 0;
+          p->vmas[i].length = 0;
+          p->vmas[i].prot = 0;
+          p->vmas[i].flags = 0;
+          p->vmas[i].fd = 0;
+          p->vmas[i].offset = 0;
+          p->vmas[i].file = 0;
+        } else if (end_addr < vma_end) {
+          // shrink the vma
+          uint64 new_length = vma_end - end_addr;
+          p->vmas[i].length = new_length;
+        } else {
+          // cannot unmap more than vma length
+          return -1;
+        }
+
+        // if MAP_SHARED
+        if (p->vmas[i].flags == MAP_SHARED) {
+          // write back modified pages to the file
+          for (uint64 a = addr; a < end_addr; a += PGSIZE) {
+            uint64 pa = walkaddr(p->pagetable, a);
+            if (pa != 0) {
+              // page is mapped, write back to file
+              uint64 file_offset = p->vmas[i].offset + (a - p->vmas[i].addr);
+              begin_op();
+              ilock(p->vmas[i].file->ip);
+              if (writei(p->vmas[i].file->ip, 0, pa, file_offset, PGSIZE) < 0)
+                return -1;
+              iunlock(p->vmas[i].file->ip);
+              end_op();
+            }
+          }
+        }
+
+        // if allocated pages, unmap them
+        for (uint64 a = addr; a < end_addr; a += PGSIZE) {
+          if (walkaddr(p->pagetable, a) != 0)
+            uvmunmap(p->pagetable, a, 1, 1);
+        }
+        vma_idx = i;
+      }
+    }
+  }
+  if (vma_idx == -1)
+    return -1;
   return 0;
 }
