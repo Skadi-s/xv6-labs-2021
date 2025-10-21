@@ -640,28 +640,15 @@ sys_munmap(void)
           return -1;
         }
 
-        // if MAP_SHARED
-        if (p->vmas[i].flags == MAP_SHARED) {
-          // write back modified pages to the file
-          for (uint64 a = addr; a < end_addr; a += PGSIZE) {
-            uint64 pa = walkaddr(p->pagetable, a);
-            if (pa != 0) {
-              // page is mapped, write back to file
-              uint64 file_offset = p->vmas[i].offset + (a - p->vmas[i].addr);
-              begin_op();
-              ilock(p->vmas[i].file->ip);
-              if (writei(p->vmas[i].file->ip, 0, pa, file_offset, PGSIZE) < 0)
-                return -1;
-              iunlock(p->vmas[i].file->ip);
-              end_op();
-            }
-          }
-        }
-
         // if allocated pages, unmap them
+        if (p->vmas[i].flags & MAP_SHARED) {
+          filewrite(p->vmas[i].file, vma_start, length); // dummy write to flush file
+        }
         for (uint64 a = addr; a < end_addr; a += PGSIZE) {
-          if (walkaddr(p->pagetable, a) != 0)
+          uint64 pa = walkaddr(p->pagetable, a);
+          if (pa != 0) {
             uvmunmap(p->pagetable, a, 1, 1);
+          }
         }
         vma_idx = i;
       }
