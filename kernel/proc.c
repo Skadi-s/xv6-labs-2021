@@ -5,9 +5,6 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-#include "fs.h"
-#include "sleeplock.h"
-#include "file.h"
 #include "fcntl.h"
 
 struct cpu cpus[NCPU];
@@ -352,19 +349,13 @@ exit(int status)
   // Unmap all VMAed pages
   for(int i = 0; i < NVMA; i++){
     if (p->vmas[i].used) {
+      if (p->vmas[i].flags & MAP_SHARED) {
+        filewrite(p->vmas[i].file, (uint64)p->vmas[i].addr, p->vmas[i].length);
+      }
       for (uint64 a = p->vmas[i].addr; a < p->vmas[i].addr + p->vmas[i].length; a += PGSIZE) {
         uint64 pa = walkaddr(p->pagetable, a);
         if (pa != 0) {
           // page is mapped, write back to file if needed
-          if (p->vmas[i].prot & PROT_WRITE && (p->vmas[i].flags & MAP_SHARED)) {
-            begin_op();
-            ilock(p->vmas[i].file->ip);
-            uint64 file_offset = p->vmas[i].offset + (a - p->vmas[i].addr);
-            if (writei(p->vmas[i].file->ip, 0, pa, file_offset, PGSIZE) < 0)
-              panic("exit: write back vma failed");
-            iunlock(p->vmas[i].file->ip);
-            end_op();
-          }
           uvmunmap(p->pagetable, a, 1, 1);
         }
       }
