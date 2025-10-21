@@ -632,8 +632,9 @@ sys_munmap(void)
           p->vmas[i].file = 0;
         } else if (end_addr < vma_end) {
           // shrink the vma
-          uint64 new_length = vma_end - end_addr;
-          p->vmas[i].length = new_length;
+          p->vmas[i].addr = end_addr;
+          p->vmas[i].length = vma_end - end_addr;
+          p->vmas[i].offset += (end_addr - vma_start);
         } else {
           // cannot unmap more than vma length
           return -1;
