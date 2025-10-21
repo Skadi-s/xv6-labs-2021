@@ -5,6 +5,10 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -344,6 +348,35 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  // Unmap all VMAed pages
+  for(int i = 0; i < NVMA; i++){
+    if (p->vmas[i].used) {
+      for (uint64 a = p->vmas[i].addr; a < p->vmas[i].addr + p->vmas[i].length; a += PGSIZE) {
+        uint64 pa = walkaddr(p->pagetable, a);
+        if (pa != 0) {
+          // page is mapped, write back to file if needed
+          if (p->vmas[i].prot & PROT_WRITE && (p->vmas[i].flags & MAP_SHARED)) {
+            begin_op();
+            ilock(p->vmas[i].file->ip);
+            uint64 file_offset = p->vmas[i].offset + (a - p->vmas[i].addr);
+            if (writei(p->vmas[i].file->ip, 0, pa, file_offset, PGSIZE) < 0)
+              panic("exit: write back vma failed");
+            iunlock(p->vmas[i].file->ip);
+            end_op();
+          }
+          uvmunmap(p->pagetable, a, 1, 1);
+        }
+      }
+      fileclose(p->vmas[i].file);
+      p->vmas[i].used = 0;
+      p->vmas[i].file = 0;
+      p->vmas[i].addr = 0;
+      p->vmas[i].length = 0;
+      p->vmas[i].prot = 0;
+      p->vmas[i].flags = 0;
+    }
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
