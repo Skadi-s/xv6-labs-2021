@@ -6,8 +6,10 @@
 #include "defs.h"
 #include "fs.h"
 #include "spinlock.h"
+#include "sleeplock.h"
 #include "proc.h"
 #include "fcntl.h"
+#include "file.h"
 
 /*
  * the kernel's page table.
@@ -439,6 +441,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 int
 handle_user_page_fault(struct proc *p, uint64 va) {
   if (va >= MAXVA) {
+    printf("usertrap(): va %p; handle_user_page_fault: out of range\n", va);
     return -1;
   }
 
@@ -453,6 +456,7 @@ handle_user_page_fault(struct proc *p, uint64 va) {
   // Allocate a new page for the virtual memory area
   char *mem = kalloc();
   if (mem == 0) {
+    printf("usertrap(): va %p; handle_user_page_fault: out of memory\n", va);
     return -1;
   }
   memset(mem, 0, PGSIZE);
@@ -465,8 +469,28 @@ handle_user_page_fault(struct proc *p, uint64 va) {
       if (vma->prot & PROT_WRITE) perm |= PTE_W;
       if (vma->prot & PROT_EXEC) perm |= PTE_X;
 
+      // read data from file
+      if (vma->file != 0) {
+        ilock(vma->file->ip);
+        uint64 file_offset = vma->offset + (aligned_va - vma->addr);
+        uint64 to_read = PGSIZE;
+        if (file_offset + to_read > vma->offset + vma->length) {
+          to_read = (vma->offset + vma->length) - file_offset;
+        }
+        if (to_read > 0) {
+          if (readi(vma->file->ip, 0, (uint64)mem, file_offset, to_read) < 0) {
+            iunlock(vma->file->ip);
+            kfree(mem);
+            printf("usertrap(): va %p; handle_user_page_fault: readi failed\n", va);
+            return -1;
+          }
+        }
+        iunlock(vma->file->ip);
+      }
+
       if (mappages(p->pagetable, aligned_va, PGSIZE, (uint64)mem, perm) != 0) {
         kfree(mem);
+        printf("usertrap(): va %p; handle_user_page_fault: mappages failed\n", va);
         return -1;
       }
       return 0;
