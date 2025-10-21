@@ -535,8 +535,6 @@ sys_mmap(void)
     return -1;
   if ((prot & PROT_WRITE) && !fp->writable && flags != MAP_PRIVATE)
     return -1;
-  if (flags == MAP_SHARED && !fp->writable)
-    return -1;
 
   struct proc *p = myproc();
 
