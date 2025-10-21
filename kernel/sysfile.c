@@ -552,17 +552,9 @@ sys_mmap(void)
   // check vma overlap and find free slot
   int slot = -1;
   for (int i = 0; i < NVMA; i++) {
-    if (p->vmas[i].used) {
-      uint64 a1 = p->vmas[i].addr;
-      uint64 b1 = a1 + p->vmas[i].length;
-      uint64 a2 = base;
-      uint64 b2 = base + plen;
-      if (!(b1 <= a2 || b2 <= a1)) {
-        // overlap
-        return -1;
-      }
-    } else if (slot == -1) {
+    if (!p->vmas[i].used) {
       slot = i;
+      break;
     }
   }
   if (slot == -1)
