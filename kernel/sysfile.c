@@ -525,7 +525,7 @@ sys_mmap(void)
   // require file to be readable/writable according to prot
   if ((prot & PROT_READ) && !fp->readable)
     return -1;
-  if ((prot & PROT_WRITE) && !fp->writable)
+  if ((prot & PROT_WRITE) && !fp->writable && flags != MAP_PRIVATE)
     return -1;
 
   struct proc *p = myproc();
