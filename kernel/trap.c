@@ -69,7 +69,6 @@ usertrap(void)
     // handle page fault
     uint64 va = r_stval();
     if (handle_user_page_fault(p, va) < 0) {
-      printf("usertrap(): page fault handle failed pid=%d va=%p\n", p->pid, va);
       p->killed = 1;
     }
   }else if((which_dev = devintr()) != 0){
