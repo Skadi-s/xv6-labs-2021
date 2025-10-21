@@ -509,64 +509,75 @@ sys_mmap(void)
   if (argaddr(5, &offset) < 0)
     return -1;
 
-  // assume addr is always 0 for simplicity
-  // the kernel will choose the address
-  if (addr != 0)
+  // basic checks
+  if (addr != 0) // only support kernel-chosen addr for now
     return -1;
-  // assume port is PORT_READ or PORT_WRITE or both
-  if (prot != PROT_READ && prot != PROT_WRITE && prot != (PROT_READ | PROT_WRITE))
+  if (length == 0)
     return -1;
-  // assume flags is MAP_SHARED or MAP_PRIVATE
+  if (offset % PGSIZE != 0) // offset must be page-aligned
+    return -1;
+  // prot must be subset of PROT_READ/PROT_WRITE
+  if (prot & ~(PROT_READ | PROT_WRITE))
+    return -1;
+  // flags must be MAP_SHARED or MAP_PRIVATE (no other flags supported)
   if (flags != MAP_SHARED && flags != MAP_PRIVATE)
     return -1;
-  // assume offset is always 0 for simplicity
-  if (offset != 0)
-    return -1;
-  
-  // file protection check
+  // require file to be readable/writable according to prot
   if ((prot & PROT_READ) && !fp->readable)
     return -1;
   if ((prot & PROT_WRITE) && !fp->writable)
     return -1;
-  if ((flags == MAP_SHARED) && (prot & PROT_WRITE) && !fp->writable)
-    return -1;
 
-  // find a free vma slot
   struct proc *p = myproc();
 
-  // check if exceeds max virtual address
-  if (p->sz + length > MAXVA)
+  // length must be rounded up to pages
+  uint64 npages = (length + PGSIZE - 1) / PGSIZE;
+  uint64 plen = npages * PGSIZE;
+
+  // choose an address: align p->sz up to page
+  uint64 base = (p->sz + PGSIZE - 1) & ~(PGSIZE - 1);
+  if (base + plen > MAXVA)
     return -1;
 
+  // check vma overlap and find free slot
+  int slot = -1;
   for (int i = 0; i < NVMA; i++) {
-    if (p->vmas[i].used == 0) {
-      p->vmas[i].used = 1;
-      p->vmas[i].addr = p->sz; // kernel chooses the address
-      p->vmas[i].length = length;
-      p->vmas[i].prot = prot;
-      p->vmas[i].flags = flags;
-      p->vmas[i].fd = fd;
-      p->vmas[i].offset = offset;
-      p->vmas[i].file = fp;
-      p->sz += length; // increase process size
-      filedup(fp); // increase file ref count
-      return p->vmas[i].addr; // return the address chosen by the kernel
+    if (p->vmas[i].used) {
+      uint64 a1 = p->vmas[i].addr;
+      uint64 b1 = a1 + p->vmas[i].length;
+      uint64 a2 = base;
+      uint64 b2 = base + plen;
+      if (!(b1 <= a2 || b2 <= a1)) {
+        // overlap
+        return -1;
+      }
+    } else if (slot == -1) {
+      slot = i;
     }
   }
+  if (slot == -1)
+    return -1;
 
-  return -1; // no free vma slot
+  // fill vma
+  p->vmas[slot].used = 1;
+  p->vmas[slot].addr = base;
+  p->vmas[slot].length = plen;
+  p->vmas[slot].prot = prot;
+  p->vmas[slot].flags = flags;
+  p->vmas[slot].fd = fd;
+  p->vmas[slot].offset = offset;
+  p->vmas[slot].file = fp;
+  filedup(fp); // keep file referenced by vma
+
+  // increase process size to reserve the region
+  p->sz = base + plen;
+
+  // return the chosen address
+  return base;
 }
 
 uint64
 sys_munmap(void)
 {
-  uint64 addr;
-  uint64 length;
-
-  if (argaddr(0, &addr) < 0)
-    return -1;
-  if (argaddr(1, &length) < 0)
-    return -1;
-    
   return 0;
 }
