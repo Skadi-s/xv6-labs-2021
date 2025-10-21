@@ -5,6 +5,9 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
+#include "fcntl.h"
 
 /*
  * the kernel's page table.
@@ -431,4 +434,44 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int
+handle_user_page_fault(struct proc *p, uint64 va) {
+  if (va >= MAXVA) {
+    return -1;
+  }
+
+  uint64 aligned_va = PGROUNDDOWN(va);
+
+  // Check if the page is already allocated
+  if (walkaddr(p->pagetable, aligned_va) != 0) {
+    // maybe cow
+    return 0;
+  }
+
+  // Allocate a new page for the virtual memory area
+  char *mem = kalloc();
+  if (mem == 0) {
+    return -1;
+  }
+  memset(mem, 0, PGSIZE);
+
+  for (int i = 0; i < NVMA; i++) {
+    struct vma *vma = &p->vmas[i];
+    if (vma->used && va >= vma->addr && va < vma->length + vma->addr) {
+      int perm = PTE_U;
+      if (vma->prot & PROT_READ) perm |= PTE_R;
+      if (vma->prot & PROT_WRITE) perm |= PTE_W;
+      if (vma->prot & PROT_EXEC) perm |= PTE_X;
+
+      if (mappages(p->pagetable, aligned_va, PGSIZE, (uint64)mem, perm) != 0) {
+        kfree(mem);
+        return -1;
+      }
+      return 0;
+    }
+  }
+
+  return 0;
 }
