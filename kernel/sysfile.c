@@ -631,7 +631,7 @@ sys_munmap(void)
         }
 
         // if allocated pages, unmap them
-        if (p->vmas[i].flags & MAP_SHARED) {
+        if ((p->vmas[i].flags & MAP_SHARED) && (p->vmas[i].prot & PROT_WRITE)) {
           filewrite(p->vmas[i].file, vma_start, length); // dummy write to flush file
         }
         for (uint64 a = addr; a < end_addr; a += PGSIZE) {
