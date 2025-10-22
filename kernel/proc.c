@@ -285,14 +285,8 @@ fork(void)
 
   for (int i = 0; i < NVMA; i++) {
     if (p->vmas[i].used) {
-      np->vmas[i].used = 1;
-      np->vmas[i].file = filedup(p->vmas[i].file);
-      np->vmas[i].addr = p->vmas[i].addr;
-      np->vmas[i].length = p->vmas[i].length;
-      np->vmas[i].prot = p->vmas[i].prot;
-      np->vmas[i].flags = p->vmas[i].flags;
-      np->vmas[i].fd = p->vmas[i].fd;
-      np->vmas[i].offset = p->vmas[i].offset;
+      memmove(&np->vmas[i], &p->vmas[i], sizeof(struct vma));
+      filedup(p->vmas[i].file);
     }
   }
   
