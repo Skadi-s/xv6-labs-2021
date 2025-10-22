@@ -68,7 +68,9 @@ usertrap(void)
   }else if(r_scause() == 13 || r_scause() == 15){
     // handle page fault
     uint64 va = r_stval();
-    if (handle_user_page_fault(p, va) < 0) {
+    // write / read 
+    int is_write = (r_scause() == 15);
+    if(handle_user_page_fault(p, va, is_write) < 0){ 
       p->killed = 1;
     }
   }else if((which_dev = devintr()) != 0){
