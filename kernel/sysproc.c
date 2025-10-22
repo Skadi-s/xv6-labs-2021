@@ -1,8 +1,8 @@
 #include "types.h"
 #include "riscv.h"
+#include "param.h"
 #include "defs.h"
 #include "date.h"
-#include "param.h"
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
@@ -47,6 +47,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  
   addr = myproc()->sz;
   if(growproc(n) < 0)
     return -1;
@@ -71,6 +72,38 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+  return 0;
+}
+
+int
+sys_pgaccess(void)
+{
+  // lab pgtbl: your code here.
+  // The system call takes three arguments
+  // The first argument is the starting virtual address of the pages to be checked.
+  // The second argument is the number of pages to be checked.
+  // The third argument is the address of a user-space array that will be filled with the
+  // accessed bits of the pages. Each bit in the array corresponds to a page, with
+  // the least significant bit of the first byte representing the first page.
+  uint64 start_va;
+  int page_num;
+  uint64 result_va;
+
+  if(argaddr(0, &start_va) < 0)
+    return -1;
+  if(argint(1, &page_num) < 0)
+    return -1;
+  if(argaddr(2, &result_va) < 0)
+    return -1;
+  // check page_num validity
+  if(page_num < 0 || page_num > 64)
+    return -1;
+  
+  struct proc *p = myproc();
+  if (p == 0)
+    return -1;
+  if (pgaccess(start_va, page_num, result_va) < 0)
+    return -1;
   return 0;
 }
 
@@ -125,5 +158,11 @@ sys_sysinfo(void)
   if(copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_connect(void)
+{
   return 0;
 }

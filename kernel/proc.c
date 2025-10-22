@@ -127,6 +127,13 @@ found:
     return 0;
   }
 
+  if ((p->usyscall = (struct usyscall *)kalloc()) == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  p->usyscall->pid = p->pid;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -153,6 +160,9 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+  if(p->usyscall)
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -196,6 +206,14 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
   return pagetable;
 }
 
@@ -206,6 +224,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
 
@@ -669,4 +688,32 @@ proccount()
     release(&p->lock);
   }
   return count;
+}
+
+int
+pgaccess(uint64 start_va, int page_num, uint64 result_va)
+{
+  // lab pgtbl: your code here.
+  // Return value: a bit mask of length 'len' indicating
+  // whether each page is accessed (1) or not (0).
+  // The least significant bit of the return value
+  // indicates whether the first page is accessed.
+  // If any error, return -1.
+  struct proc *p = myproc();
+  uint64 accessed_mask = 0;
+  for (int i = 0; i < page_num; i++) {
+    uint64 va = start_va + i * PGSIZE;
+    if (va >= p->sz)
+      return -1;
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if (pte == 0)
+      return -1;
+    if ((*pte & PTE_A) != 0) {
+      accessed_mask |= (1 << i);
+      *pte &= ~PTE_A; // clear the accessed bit
+    }
+  }
+  if (either_copyout(1, result_va, (char *)&accessed_mask, sizeof(accessed_mask)) < 0)
+    return -1;
+  return 0;
 }
