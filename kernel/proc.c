@@ -283,6 +283,17 @@ fork(void)
     return -1;
   }
 
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used) {
+      np->vmas[i].used = 1;
+      np->vmas[i].file = filedup(p->vmas[i].file);
+      np->vmas[i].addr = p->vmas[i].addr;
+      np->vmas[i].length = p->vmas[i].length;
+      np->vmas[i].prot = p->vmas[i].prot;
+      np->vmas[i].flags = p->vmas[i].flags;
+    }
+  }
+  
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -306,17 +317,6 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
-
-  for (int i = 0; i < NVMA; i++) {
-    if (p->vmas[i].used) {
-      np->vmas[i].used = 1;
-      np->vmas[i].file = filedup(p->vmas[i].file);
-      np->vmas[i].addr = p->vmas[i].addr;
-      np->vmas[i].length = p->vmas[i].length;
-      np->vmas[i].prot = p->vmas[i].prot;
-      np->vmas[i].flags = p->vmas[i].flags;
-    }
-  }
 
   release(&np->lock);
 
