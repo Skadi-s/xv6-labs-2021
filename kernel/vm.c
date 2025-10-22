@@ -455,13 +455,22 @@ handle_user_page_fault(struct proc *p, uint64 va, int is_write)
   // If there is already a leaf PTE and it's valid, check permissions.
   pte_t *pte = walk(p->pagetable, a, 0);
   if (pte && (*pte & PTE_V)) {
-    // existing mapping: if it's a write fault but page not writable, fail (COW handling not implemented here)
-    if (is_write && !(*pte & PTE_W)) {
-      // If you implement COW, handle PTE_COW here.
-      printf("handle_user_page_fault: write to non-writable page va=%p\n", va);
+    // check permissions
+    if (!(*pte & PTE_U)) {
+      // user access not allowed
+      // printf("handle_user_page_fault: user access not allowed by PTE va=%p\n", va);
       return -1;
     }
-    // mapping already present and usable
+    if (is_write && !(*pte & PTE_W)) {
+      // write to read-only page
+      // printf("handle_user_page_fault: write not allowed by PTE va=%p\n", va);
+      return -1;
+    }
+    if (!is_write && !(*pte & (PTE_R | PTE_X))) {
+      // read/exec to non-readable/non-executable page
+      // printf("handle_user_page_fault: read/exec not allowed by PTE va=%p\n", va);
+      return -1;
+    }
     return 0;
   }
 
@@ -526,7 +535,7 @@ handle_user_page_fault(struct proc *p, uint64 va, int is_write)
   // If your mappages expects a physical address, convert mem -> physical first.
   if (mappages(p->pagetable, a, PGSIZE, (uint64)mem, perm) != 0) {
     kfree(mem);
-    printf("handle_user_page_fault: mappages failed va=%p\n", va);
+    printf("handle_user_page_fault: mappages failedvm. va=%p\n", va);
     return -1;
   }
 
