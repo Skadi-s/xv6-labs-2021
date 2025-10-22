@@ -291,6 +291,8 @@ fork(void)
       np->vmas[i].length = p->vmas[i].length;
       np->vmas[i].prot = p->vmas[i].prot;
       np->vmas[i].flags = p->vmas[i].flags;
+      np->vmas[i].fd = p->vmas[i].fd;
+      np->vmas[i].offset = p->vmas[i].offset;
     }
   }
   
