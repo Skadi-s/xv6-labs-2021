@@ -1,10 +1,4 @@
-
-# To compile and run with a lab solution, set the lab name in lab.mk
-# (e.g., LAB=util).  Run make grade to test solution with the lab's
-# grade script (e.g., grade-lab-util).
-
 -include conf/lab.mk
-
 K=kernel
 U=user
 
@@ -145,7 +139,10 @@ tags: $(OBJS) _init
 	etags *.S *.c
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
-# ULIB += $U/statistics.o
+
+ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
+ULIB += $U/statistics.o
+endif
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
