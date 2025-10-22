@@ -1,4 +1,10 @@
 // Shell.
+// TODO 
+// when process file command, do not print $ prompt until command is done
+// add support for wait
+// add support for ';' to run multiple commands in one line
+// add support for tab completion
+// add support for history (up arrow to get last command)
 
 #include "kernel/types.h"
 #include "user/user.h"
