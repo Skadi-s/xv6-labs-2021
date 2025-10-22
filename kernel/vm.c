@@ -443,63 +443,94 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 }
 
 int
-handle_user_page_fault(struct proc *p, uint64 va) {
+handle_user_page_fault(struct proc *p, uint64 va, int is_write)
+{
   if (va >= MAXVA) {
-    printf("usertrap(): va %p; handle_user_page_fault: out of range\n", va);
+    printf("handle_user_page_fault: va %p out of range\n", va);
     return -1;
   }
 
-  uint64 aligned_va = PGROUNDDOWN(va);
+  uint64 a = PGROUNDDOWN(va);
 
-  // Check if the page is already allocated
-  if (walkaddr(p->pagetable, aligned_va) != 0) {
-    // maybe cow
+  // If there is already a leaf PTE and it's valid, check permissions.
+  pte_t *pte = walk(p->pagetable, a, 0);
+  if (pte && (*pte & PTE_V)) {
+    // existing mapping: if it's a write fault but page not writable, fail (COW handling not implemented here)
+    if (is_write && !(*pte & PTE_W)) {
+      // If you implement COW, handle PTE_COW here.
+      printf("handle_user_page_fault: write to non-writable page va=%p\n", va);
+      return -1;
+    }
+    // mapping already present and usable
     return 0;
   }
 
-  // Allocate a new page for the virtual memory area
+  // find vma covering this page (use aligned address)
+  struct vma *v = 0;
+  for (int i = 0; i < NVMA; i++) {
+    if (!p->vmas[i].used) continue;
+    uint64 start = p->vmas[i].addr;
+    uint64 end = start + p->vmas[i].length;
+    if (a >= start && a < end) {
+      v = &p->vmas[i];
+      break;
+    }
+  }
+  if (!v) {
+    // no mapping covers this va
+    // printf("handle_user_page_fault: no vma for va %p\n", va);
+    return -1;
+  }
+
+  // if fault is a write, ensure vma allows write
+  if (is_write && !(v->prot & PROT_WRITE)) {
+    // write to read-only mapping
+    // printf("handle_user_page_fault: write not allowed by vma va=%p\n", va);
+    return -1;
+  }
+
+  // allocate a kernel page buffer
   char *mem = kalloc();
   if (mem == 0) {
-    printf("usertrap(): va %p; handle_user_page_fault: out of memory\n", va);
+    printf("handle_user_page_fault: out of memory\n");
     return -1;
   }
   memset(mem, 0, PGSIZE);
 
-  for (int i = 0; i < NVMA; i++) {
-    struct vma *vma = &p->vmas[i];
-    if (vma->used && va >= vma->addr && va < vma->length + vma->addr) {
-      int perm = PTE_U;
-      if (vma->prot & PROT_READ) perm |= PTE_R;
-      if (vma->prot & PROT_WRITE) perm |= PTE_W;
-      if (vma->prot & PROT_EXEC) perm |= PTE_X;
-
-      // read data from file
-      if (vma->file != 0) {
-        ilock(vma->file->ip);
-        uint64 file_offset = vma->offset + (aligned_va - vma->addr);
-        uint64 to_read = PGSIZE;
-        if (file_offset + to_read > vma->offset + vma->length) {
-          to_read = (vma->offset + vma->length) - file_offset;
-        }
-        if (to_read > 0) {
-          if (readi(vma->file->ip, 0, (uint64)mem, file_offset, to_read) < 0) {
-            iunlock(vma->file->ip);
-            kfree(mem);
-            printf("usertrap(): va %p; handle_user_page_fault: readi failed\n", va);
-            return -1;
-          }
-        }
-        iunlock(vma->file->ip);
-      }
-
-      if (mappages(p->pagetable, aligned_va, PGSIZE, (uint64)mem, perm) != 0) {
+  // if file-backed, read file data into page (ilock + readi, do not use fileread)
+  if (v->file) {
+    uint64 file_offset = v->offset + (a - v->addr);
+    uint64 to_read = PGSIZE;
+    if (file_offset + to_read > v->offset + v->length)
+      to_read = (v->offset + v->length) - file_offset;
+    if (to_read > 0) {
+      ilock(v->file->ip);
+      int n = readi(v->file->ip, 0, (uint64)mem, file_offset, (int)to_read);
+      iunlock(v->file->ip);
+      if (n < 0) {
         kfree(mem);
-        printf("usertrap(): va %p; handle_user_page_fault: mappages failed\n", va);
+        printf("handle_user_page_fault: readi failed va=%p\n", va);
         return -1;
       }
-      return 0;
+      // mem 已 memset 为0，若 n < PGSIZE 剩余部分保持为 0
     }
   }
 
+  // build PTE permissions from vma->prot
+  int perm = PTE_U;
+  if (v->prot & PROT_READ)  perm |= PTE_R;
+  if (v->prot & PROT_WRITE) perm |= PTE_W;
+  if (v->prot & PROT_EXEC)  perm |= PTE_X;
+
+  // mappages: note in this tree callers often pass kernel pointer from kalloc directly.
+  // If your mappages expects a physical address, convert mem -> physical first.
+  if (mappages(p->pagetable, a, PGSIZE, (uint64)mem, perm) != 0) {
+    kfree(mem);
+    printf("handle_user_page_fault: mappages failed va=%p\n", va);
+    return -1;
+  }
+
+  // ensure TLB sees new mapping
+  sfence_vma();
   return 0;
 }
