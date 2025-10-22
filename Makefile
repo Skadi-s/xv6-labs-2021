@@ -44,9 +44,7 @@ OBJS_KCSAN += \
 	$K/kcsan.o
 endif
 
-<<<<<<< HEAD
 ifeq ($(LAB),$(filter $(LAB), lock))
-ifeq ($(LAB),pgtbl)
 OBJS += \
 	$K/vmcopyin.o
 endif
@@ -147,7 +145,7 @@ tags: $(OBJS) _init
 	etags *.S *.c
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
-ULIB += $U/statistics.o
+# ULIB += $U/statistics.o
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -199,10 +197,7 @@ UPROGS=\
 	$U/_xargs\
 	$U/_uptime\
 
-ifeq ($(LAB),$(filter $(LAB), lock))
-=======
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
->>>>>>> util
 UPROGS += \
 	$U/_stats
 endif
@@ -241,14 +236,11 @@ barrier: notxv6/barrier.c
 	gcc -o barrier -g -O2 $(XCFLAGS) notxv6/barrier.c -pthread
 endif
 
-<<<<<<< HEAD
 ifeq ($(LAB),pgtbl)
 UPROGS += \
 	$U/_pgtbltest
 endif
 
-=======
->>>>>>> util
 ifeq ($(LAB),lock)
 UPROGS += \
 	$U/_kalloctest\
