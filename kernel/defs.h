@@ -170,7 +170,7 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
-int             handle_user_page_fault(struct proc *p, uint64 va);
+int             handle_user_page_fault(struct proc *p, uint64 va, int is_write);
 
 // plic.c
 void            plicinit(void);
