@@ -138,8 +138,8 @@ runcmd(struct cmd *cmd)
 
   case BACK:
     bcmd = (struct backcmd*)cmd;
-    if(fork1() == 0)
-      runcmd(bcmd->cmd);
+    // if(fork1() == 0)
+    runcmd(bcmd->cmd);
     break;
   }
   exit(0);
@@ -193,9 +193,23 @@ main(void)
     }
     struct cmd* command = parsecmd(buf);
     // debug_printcmd(command, 0);
-    if(fork1() == 0)
+
+    if (command->type == EXEC) {
+      struct execcmd* exec_command = (struct execcmd*)command;
+      if (strcmp(exec_command->argv[0], "wait") == 0) {
+        int pid, status;
+        while ((pid = wait(&status)) >= 0) {
+          printf("waited for pid %d, status %d\n", pid, status);
+        }
+        continue;
+      }
+    }
+    
+    int pid = fork1();
+    if(pid == 0)
       runcmd(command);
-    wait(0);
+    if(command->type != BACK) 
+      wait(0);
   }
   exit(0);
 }
