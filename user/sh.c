@@ -9,6 +9,9 @@
 #include "kernel/types.h"
 #include "user/user.h"
 #include "kernel/fcntl.h"
+#include "kernel/stat.h"
+
+static int interactive = 0;
 
 // Parsed command representation
 #define EXEC  1
@@ -140,7 +143,8 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
-  fprintf(2, "$ ");
+  if (interactive)
+    fprintf(2, "$ ");
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -153,6 +157,7 @@ main(void)
 {
   static char buf[100];
   int fd;
+  struct stat st;
 
   // Ensure that three file descriptors are open.
   while((fd = open("console", O_RDWR)) >= 0){
@@ -160,6 +165,12 @@ main(void)
       close(fd);
       break;
     }
+  }
+
+  if (fstat(0, &st) == 0 && (st.type == T_DEVICE)) {
+    interactive = 1;
+  } else {
+    interactive = 0;
   }
 
   // Read and run input commands.
