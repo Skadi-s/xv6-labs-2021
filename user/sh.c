@@ -20,6 +20,7 @@ static int interactive = 0;
 #define PIPE  3
 #define LIST  4
 #define BACK  5
+#define SUBSHELL 6
 
 #define MAXARGS 10
 
@@ -60,6 +61,13 @@ struct backcmd {
   struct cmd *cmd;
 };
 
+struct subshellcmd
+{
+  int type;
+  struct cmd *cmd;
+};
+
+
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
@@ -78,6 +86,7 @@ runcmd(struct cmd *cmd)
   struct listcmd *lcmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+  struct subshellcmd *scmd;
 
   if(cmd == 0)
     exit(1);
@@ -110,6 +119,13 @@ runcmd(struct cmd *cmd)
       runcmd(lcmd->left);
     wait(0);
     runcmd(lcmd->right);
+    break;
+  
+  case SUBSHELL:
+    scmd = (struct subshellcmd*)cmd;
+    if(fork1() == 0)
+      runcmd(scmd->cmd);
+    wait(0);
     break;
 
   case PIPE:
@@ -192,7 +208,7 @@ main(void)
       continue;
     }
     struct cmd* command = parsecmd(buf);
-    // debug_printcmd(command, 0);
+    debug_printcmd(command, 0);
 
     if (command->type == EXEC) {
       struct execcmd* exec_command = (struct execcmd*)command;
@@ -316,6 +332,21 @@ backcmd(struct cmd *subcmd)
   cmd = malloc(sizeof(*cmd));
   memset(cmd, 0, sizeof(*cmd));
   cmd->type = BACK;
+  cmd->cmd = subcmd;
+  return (struct cmd*)cmd;
+}
+
+/// @brief  Create a new subshell command.
+/// @param subcmd The command to run in the subshell.
+/// @return A pointer to the new subshell command structure.
+struct cmd*
+subshellcmd(struct cmd *subcmd)
+{
+  struct subshellcmd *cmd;
+
+  cmd = malloc(sizeof(*cmd));
+  memset(cmd, 0, sizeof(*cmd));
+  cmd->type = SUBSHELL;
   cmd->cmd = subcmd;
   return (struct cmd*)cmd;
 }
@@ -504,6 +535,8 @@ parseblock(char **ps, char *es)
   if(!peek(ps, es, ")"))
     panic("syntax - missing )");
   gettoken(ps, es, 0, 0);
+
+  cmd = subshellcmd(cmd);
   cmd = parseredirs(cmd, ps, es);
   return cmd;
 }
@@ -557,6 +590,7 @@ nulterminate(struct cmd *cmd)
   struct listcmd *lcmd;
   struct pipecmd *pcmd;
   struct redircmd *rcmd;
+  struct subshellcmd *scmd;
 
   if(cmd == 0)
     return 0;
@@ -589,6 +623,11 @@ nulterminate(struct cmd *cmd)
   case BACK:
     bcmd = (struct backcmd*)cmd;
     nulterminate(bcmd->cmd);
+    break;
+
+  case SUBSHELL:
+    scmd = (struct subshellcmd*)cmd;
+    nulterminate(scmd->cmd);
     break;
   }
   return cmd;
@@ -642,6 +681,12 @@ debug_printcmd(struct cmd *cmd, int depth)
     struct backcmd *b = (struct backcmd*)cmd;
     print_indent(depth); printf("BACK\n");
     debug_printcmd(b->cmd, depth+1);
+    break;
+  }
+  case SUBSHELL: {
+    struct subshellcmd *s = (struct subshellcmd*)cmd;
+    print_indent(depth); printf("SUBSHELL\n");
+    debug_printcmd(s->cmd, depth+1);
     break;
   }
   default:
