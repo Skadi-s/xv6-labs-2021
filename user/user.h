@@ -43,6 +43,7 @@ void printf(const char*, ...);
 char* gets(char*, int max);
 char getchar(void);
 uint strlen(const char*);
+uint strspn(const char *str, const char *accept);
 void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);

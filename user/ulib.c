@@ -1,10 +1,8 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/fcntl.h"
-#ifdef LAB_PGTBL
 #include "kernel/riscv.h"
 #include "kernel/memlayout.h"
-#endif
 #include "user/user.h"
 
 
@@ -36,6 +34,27 @@ strlen(const char *s)
   for(n = 0; s[n]; n++)
     ;
   return n;
+}
+
+uint
+strspn(const char *str, const char *accept)
+{
+  const char *s;
+  const char *a;
+  uint count = 0;
+
+  for (s = str; *s != '\0'; s++) {
+    for (a = accept; *a != '\0'; a++) {
+      if (*s == *a) {
+        count++;
+        break;
+      }
+    }
+    if (*a == '\0') {
+      break;
+    }
+  }
+  return count;
 }
 
 void*
