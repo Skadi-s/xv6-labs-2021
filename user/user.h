@@ -44,6 +44,7 @@ char* gets(char*, int max);
 char getchar(void);
 uint strlen(const char*);
 uint strspn(const char *str, const char *accept);
+int strncmp(const char*, const char*, uint);
 void* memset(void*, int, uint);
 void* malloc(uint);
 void free(void*);
