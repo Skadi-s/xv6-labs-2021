@@ -10,6 +10,8 @@
 #include "user/user.h"
 #include "kernel/fcntl.h"
 #include "kernel/stat.h"
+#include "kernel/fs.h"
+#include "kernel/param.h"
 
 // Is the shell running interactively?
 static int interactive = 0;
@@ -71,6 +73,7 @@ struct subshellcmd
 int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
+int tab_complete(char *buf, int nbuf, int *pos);
 void debug_printcmd(struct cmd*, int);
 
 // Execute cmd.  Never returns.
@@ -168,10 +171,62 @@ runcmd(struct cmd *cmd)
 int
 getcmd(char *buf, int nbuf)
 {
+  int i = 0;
+  int c;
+
   if (interactive)
     fprintf(1, "$ ");
   memset(buf, 0, nbuf);
-  gets(buf, nbuf);
+  // gets(buf, nbuf);
+
+  while ((c = getchar()) != '\n') {
+    switch (c) {
+      case 0:
+        buf[i] = 0;
+        return -1;
+      case '\b':
+      case 127: // handle backspace
+        if (i > 0) {
+          i--;
+          if (interactive) {
+            fprintf(1, "\b \b");
+          }
+        }
+        break;
+      case '\t': // handle tab completion
+        {
+          char newbuf[nbuf];
+          int newlen = tab_complete(buf, nbuf, &i);
+          if (newlen > 0 && newlen < nbuf) {
+            if (interactive) {
+              // Erase current input
+              for (int j = 0; j < i; j++) {
+                fprintf(1, "\b \b");
+              }
+            }
+            // Copy new buffer
+            for (int j = 0; j < newlen; j++) {
+              buf[j] = newbuf[j];
+              if (interactive) {
+                fprintf(1, "%c", newbuf[j]);
+              }
+            }
+            i = newlen;
+          }
+        }
+        break;
+      default:
+        if (i < nbuf - 1) {
+          buf[i++] = c;
+          if (interactive) {
+            fprintf(1, "%c", c);
+          }
+        }
+        break;
+    }
+  }
+  buf[i] = 0;
+
   if(buf[0] == 0) // EOF
     return -1;
   return 0;
@@ -631,6 +686,18 @@ nulterminate(struct cmd *cmd)
     break;
   }
   return cmd;
+}
+// Tab completion
+/// @brief Attempt to complete the current input with available commands/files.
+/// @param buf The input buffer.
+/// @param nbuf The size of the buffer.
+/// @param pos Pointer to current position in buffer.
+/// @return 0 on success, -1 on failure.
+int
+tab_complete(char *buf, int nbuf, int *pos)
+{
+  // todo
+  return -1;
 }
 
 // debug: print command tree
