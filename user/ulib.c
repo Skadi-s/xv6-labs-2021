@@ -76,6 +76,15 @@ gets(char *buf, int max)
   return buf;
 }
 
+char
+getchar(void)
+{
+  char c;
+  if(read(0, &c, 1) != 1)
+    return 0;
+  return c;
+}
+
 int
 stat(const char *n, struct stat *st)
 {
