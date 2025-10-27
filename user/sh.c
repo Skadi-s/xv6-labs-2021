@@ -177,7 +177,6 @@ getcmd(char *buf, int nbuf)
   if (interactive)
     fprintf(1, "$ ");
   memset(buf, 0, nbuf);
-  // gets(buf, nbuf);
 
   while ((c = getchar()) != '\n') {
     switch (c) {
@@ -188,46 +187,21 @@ getcmd(char *buf, int nbuf)
       case 127: // handle backspace
         if (i > 0) {
           i--;
-          if (interactive) {
-            fprintf(1, "\b \b");
-          }
         }
         break;
-      case '\t': // handle tab completion
-        {
-          char newbuf[nbuf];
-          int newlen = tab_complete(buf, nbuf, &i);
-          if (newlen > 0 && newlen < nbuf) {
-            if (interactive) {
-              // Erase current input
-              for (int j = 0; j < i; j++) {
-                fprintf(1, "\b \b");
-              }
-            }
-            // Copy new buffer
-            for (int j = 0; j < newlen; j++) {
-              buf[j] = newbuf[j];
-              if (interactive) {
-                fprintf(1, "%c", newbuf[j]);
-              }
-            }
-            i = newlen;
-          }
-        }
+      case '\t': // ignore tab completion for now
+        // optional: implement tab completion without duplicating echo
         break;
       default:
         if (i < nbuf - 1) {
           buf[i++] = c;
-          if (interactive) {
-            fprintf(1, "%c", c);
-          }
         }
         break;
     }
   }
   buf[i] = 0;
 
-  if(buf[0] == 0) // EOF
+  if(buf[0] == 0) // EOF / empty
     return -1;
   return 0;
 }
