@@ -484,3 +484,174 @@ sys_pipe(void)
   }
   return 0;
 }
+
+/// @brief  Map length bytes starting at addr
+/// @param   addr Starting address
+/// @param   length Length in bytes
+/// @param   prot Protection flags
+/// @param   flags Mapping flags
+/// @param   fd File descriptor
+/// @param   offset Offset within the file
+/// @return  addr on success, -1 on failure
+uint64
+sys_mmap(void)
+{
+  uint64 addr;
+  uint64 length;
+  int prot;
+  int flags;
+  int fd;
+  uint64 offset;
+  struct file *fp;
+
+  if (argaddr(0, &addr) < 0)
+    return -1;
+  if (argaddr(1, &length) < 0)
+    return -1;
+  if (argint(2, &prot) < 0)
+    return -1;
+  if (argint(3, &flags) < 0)
+    return -1;
+  if (argfd(4, &fd, &fp) < 0)
+    return -1;
+  if (argaddr(5, &offset) < 0)
+    return -1;
+
+  // basic checks
+  if (addr != 0) // only support kernel-chosen addr for now
+    return -1;
+  if (length == 0)
+    return -1;
+  if (offset % PGSIZE != 0) // offset must be page-aligned
+    return -1;
+  // prot must be subset of PROT_READ/PROT_WRITE
+  if (prot & ~(PROT_READ | PROT_WRITE))
+    return -1;
+  // flags must be MAP_SHARED or MAP_PRIVATE (no other flags supported)
+  if (flags != MAP_SHARED && flags != MAP_PRIVATE)
+    return -1;
+  // require file to be readable/writable according to prot
+  if ((prot & PROT_READ) && !fp->readable)
+    return -1;
+  if ((prot & PROT_WRITE) && !fp->writable && flags != MAP_PRIVATE)
+    return -1;
+
+  struct proc *p = myproc();
+
+  // length must be rounded up to pages
+  uint64 npages = (length + PGSIZE - 1) / PGSIZE;
+  uint64 plen = npages * PGSIZE;
+
+  // choose an address: align p->sz up to page
+  uint64 base = (p->sz + PGSIZE - 1) & ~(PGSIZE - 1);
+  if (base + plen > MAXVA)
+    return -1;
+
+  // check vma overlap and find free slot
+  int slot = -1;
+  for (int i = 0; i < NVMA; i++) {
+    for (int i = 0; i < NVMA; i++) {
+      if (p->vmas[i].used) {
+        uint64 vma_start = p->vmas[i].addr;
+        uint64 vma_end = vma_start + p->vmas[i].length;
+        /* overlap if ranges intersect */
+        if (!(base + plen <= vma_start || base >= vma_end))
+          return -1;
+      } else if (slot == -1) {
+        slot = i;
+      }
+    }
+  }
+  if (slot == -1)
+    return -1;
+
+  // fill vma
+  p->vmas[slot].used = 1;
+  p->vmas[slot].addr = base;
+  p->vmas[slot].length = plen;
+  p->vmas[slot].prot = prot;
+  p->vmas[slot].flags = flags;
+  p->vmas[slot].fd = fd;
+  p->vmas[slot].offset = offset;
+  p->vmas[slot].file = fp;
+  filedup(fp); // keep file referenced by vma
+
+  // increase process size to reserve the region
+  p->sz = base + plen;
+
+  // return the chosen address
+  return base;
+}
+
+/// @brief  Unmap length bytes starting at addr
+/// @param   addr Starting address
+/// @param   length Length in bytes
+/// @return  0 on success, -1 on failure  
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  uint64 length;
+
+  if (argaddr(0, &addr) < 0)
+    return -1;
+  if (argaddr(1, &length) < 0)
+    return -1;
+
+  // basic checks
+  if (addr % PGSIZE != 0)
+    return -1;
+  if (length == 0)
+    return -1;
+  
+  // page-align length
+  struct proc *p = myproc();
+  uint64 end_addr = addr + length + PGSIZE - 1;
+  end_addr = end_addr & ~(PGSIZE - 1);
+
+  // find the vma
+  int vma_idx = -1;
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used) {
+      uint64 vma_start = p->vmas[i].addr;
+      uint64 vma_end = vma_start + p->vmas[i].length;
+      if (addr == vma_start) {
+        if (end_addr == vma_end) {
+          // unmap the vma
+          fileclose(p->vmas[i].file); // release file reference
+          p->vmas[i].used = 0;
+          p->vmas[i].addr = 0;
+          p->vmas[i].length = 0;
+          p->vmas[i].prot = 0;
+          p->vmas[i].flags = 0;
+          p->vmas[i].fd = 0;
+          p->vmas[i].offset = 0;
+          p->vmas[i].file = 0;
+        } else if (end_addr < vma_end) {
+          // shrink the vma
+          p->vmas[i].addr = end_addr;
+          p->vmas[i].length = vma_end - end_addr;
+          p->vmas[i].offset += (end_addr - vma_start);
+        } else {
+          // cannot unmap more than vma length
+          return -1;
+        }
+
+        // if allocated pages, unmap them
+        if ((p->vmas[i].flags & MAP_SHARED) && (p->vmas[i].prot & PROT_WRITE)) {
+          filewrite(p->vmas[i].file, vma_start, length); // dummy write to flush file
+        }
+        for (uint64 a = addr; a < end_addr; a += PGSIZE) {
+          uint64 pa = walkaddr(p->pagetable, a);
+          if (pa != 0) {
+            uvmunmap(p->pagetable, a, 1, 1);
+          }
+        }
+        vma_idx = i;
+      }
+    }
+  }
+  if (vma_idx == -1)
+    return -1;
+  return 0;
+}

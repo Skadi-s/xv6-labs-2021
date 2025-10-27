@@ -40,3 +40,5 @@ entry("trace");
 entry("sysinfo");
 entry("connect");
 entry("pgaccess");
+entry("mmap");
+entry("munmap");

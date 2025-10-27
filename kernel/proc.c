@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -119,6 +120,7 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  memset(&p->vmas, 0, sizeof(p->vmas));
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -300,6 +302,13 @@ fork(void)
     return -1;
   }
 
+  for (int i = 0; i < NVMA; i++) {
+    if (p->vmas[i].used) {
+      memmove(&np->vmas[i], &p->vmas[i], sizeof(struct vma));
+      filedup(p->vmas[i].file);
+    }
+  }
+  
   // Copy user memory from parent to child.
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -362,6 +371,29 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  // Unmap all VMAed pages
+  for(int i = 0; i < NVMA; i++){
+    if (p->vmas[i].used) {
+      if ((p->vmas[i].flags & MAP_SHARED) && (p->vmas[i].prot & PROT_WRITE)) {
+        filewrite(p->vmas[i].file, (uint64)p->vmas[i].addr, p->vmas[i].length);
+      }
+      for (uint64 a = p->vmas[i].addr; a < p->vmas[i].addr + p->vmas[i].length; a += PGSIZE) {
+        uint64 pa = walkaddr(p->pagetable, a);
+        if (pa != 0) {
+          // page is mapped, write back to file if needed
+          uvmunmap(p->pagetable, a, 1, 1);
+        }
+      }
+      fileclose(p->vmas[i].file);
+      p->vmas[i].used = 0;
+      p->vmas[i].file = 0;
+      p->vmas[i].addr = 0;
+      p->vmas[i].length = 0;
+      p->vmas[i].prot = 0;
+      p->vmas[i].flags = 0;
+    }
+  }
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

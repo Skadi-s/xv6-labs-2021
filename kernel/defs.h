@@ -175,6 +175,7 @@ int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 void            vmprint(pagetable_t);
 pte_t*          walk(pagetable_t, uint64, int);
+int             handle_user_page_fault(struct proc *p, uint64 va, int is_write);
 
 // plic.c
 void            plicinit(void);

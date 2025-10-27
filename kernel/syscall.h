@@ -25,11 +25,9 @@
 #define SYS_sysinfo   23
 #define SYS_sigalarm  24
 #define SYS_sigreturn 25
-
 #define SYS_symlink   26
 // mmap lab
 #define SYS_mmap      27
 #define SYS_munmap    28
-
 #define SYS_connect   29
 #define SYS_pgaccess  30
