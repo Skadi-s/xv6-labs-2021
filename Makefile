@@ -200,7 +200,8 @@ UPROGS=\
 	$U/_xargs\
 	$U/_uptime\
 	$U/_sysinfo\
-	$U/_trace
+	$U/_trace\
+	$U/_mmaptest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \

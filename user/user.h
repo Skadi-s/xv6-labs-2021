@@ -29,7 +29,7 @@ int sysinfo(struct sysinfo *);
 int connect(uint32, uint16, uint16);
 int pgaccess(void *base, int len, void *mask);
 int ugetpid(void);
-int mmap(void *addr, uint64 length, int prot, int flags, int fd, uint64 offset);
+void* mmap(void *addr, uint64 length, int prot, int flags, int fd, uint64 offset);
 int munmap(void *addr, uint64 length);
 
 // ulib.c
