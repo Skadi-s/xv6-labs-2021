@@ -110,6 +110,7 @@ extern uint64 sys_connect(void);
 extern uint64 sys_pgaccess(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
+extern uint64 sys_symlink(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -139,6 +140,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_pgaccess] sys_pgaccess,
 [SYS_mmap]    sys_mmap,
 [SYS_munmap]  sys_munmap,
+[SYS_symlink] sys_symlink
 };
 
 static char* syscall_names[] = {
@@ -167,6 +169,7 @@ static char* syscall_names[] = {
 [SYS_pgaccess] "pgaccess",
 [SYS_mmap]    "mmap",
 [SYS_munmap]  "munmap",
+[SYS_symlink] "symlink"
 };
 
 void

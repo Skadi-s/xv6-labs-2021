@@ -42,3 +42,4 @@ entry("connect");
 entry("pgaccess");
 entry("mmap");
 entry("munmap");
+entry("symlink");

@@ -16,6 +16,8 @@
 #include "file.h"
 #include "fcntl.h"
 
+#define MAX_FOLLOW_DEPTH 10
+
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
 static int
@@ -310,6 +312,48 @@ sys_open(void)
     }
     ilock(ip);
     if(ip->type == T_DIR && omode != O_RDONLY){
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+  }
+
+  if (ip->type == T_SYMLINK && (omode & O_NOFOLLOW) == 0) {
+    // Read the target path from the symlink inode
+    char target[MAXPATH];
+    int len = ip->size;
+    if (len >= MAXPATH) {
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+    for (int i = 0; i < MAX_FOLLOW_DEPTH; i++) {
+      if (readi(ip, 0, (uint64)target, 0, len) != len) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      target[len] = '\0'; // Null-terminate the target path
+      iunlockput(ip);
+
+      // Resolve the target path
+      if ((ip = namei(target)) == 0) {
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+      if (ip->type != T_SYMLINK) {
+        break; // Resolved to a non-symlink inode
+      }
+      len = ip->size;
+      if (len >= MAXPATH) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+    }
+    if (ip->type == T_SYMLINK) {
+      // Too many levels of symbolic links
       iunlockput(ip);
       end_op();
       return -1;
@@ -653,5 +697,33 @@ sys_munmap(void)
   }
   if (vma_idx == -1)
     return -1;
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  char target[MAXPATH], linkpath[MAXPATH];
+  struct inode *ip;
+  int target_len, linkpath_len;
+
+  if ((target_len = argstr(0, target, MAXPATH)) < 0 || 
+      (linkpath_len = argstr(1, linkpath, MAXPATH)) < 0)
+    return -1;
+
+  begin_op();
+  // create symlink inode
+  if ((ip = create(linkpath, T_SYMLINK, 0, 0)) == 0) {
+    end_op();
+    return -1;
+  }
+  // write target path into symlink inode
+  if (writei(ip, 0, (uint64)target, 0, target_len) != target_len) {
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iunlockput(ip);
+  end_op();
   return 0;
 }

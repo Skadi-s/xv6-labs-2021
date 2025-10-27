@@ -202,6 +202,7 @@ UPROGS=\
 	$U/_sysinfo\
 	$U/_trace\
 	$U/_mmaptest\
+	$U/_symlinktest\
 
 ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
 UPROGS += \
