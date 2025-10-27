@@ -263,7 +263,7 @@ main(void)
       continue;
     }
     struct cmd* command = parsecmd(buf);
-    debug_printcmd(command, 0);
+    // debug_printcmd(command, 0);
 
     if (command->type == EXEC) {
       struct execcmd* exec_command = (struct execcmd*)command;
