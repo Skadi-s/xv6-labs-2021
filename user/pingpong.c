@@ -1,39 +1,52 @@
 #include "kernel/types.h"
+#include "kernel/stat.h"
 #include "user/user.h"
 
-int main(int argc, char *argv[]) {
-    int p1[2];  // parent to child
-    int p2[2];  // child to parent
-    pipe(p1);
-    pipe(p2);
-    int pid = fork();
-    if (pid < 0) {
-        fprintf(2, "fork error\n");
-        exit(1);
-    } else if (pid == 0) {
-        // Child process
-        close(p1[1]); // Close write end
-        close(p2[0]); // Close read end
-        // read one byte from pipe
-        char buf[1];
-        read(p1[0], buf, 1);
-        printf("%d: received ping\n", getpid());
-        write(p2[1], "p", 1);
-        close(p1[0]); // Close read end
-        close(p2[1]); // Close write end
-        exit(0);
-    } else {
-        // Parent process
-        close(p1[0]); // Close read end
-        close(p2[1]); // Close write end
-        // write one byte to pipe
-        char buf[1];
-        write(p1[1], "p", 1);
-        read(p2[0], buf, 1);
-        printf("%d: received pong\n", getpid());
-        close(p1[1]); // Close write end
-        close(p2[0]); // Close read end
-        wait(0); // Wait for child to finish
-        exit(0);
-    }
+#define N 5
+char buf[N];
+
+void
+pong(int *parent_to_child, int *child_to_parent) {
+  if (read(parent_to_child[0], buf, N) < 0) {
+    printf("read failed\n");
+  }
+  printf("%d: received %s\n", getpid(), buf);
+  if (write(child_to_parent[1], "pong", 4) != 4) {
+    printf("write failed\n");
+  }
+}
+
+void
+ping(int *parent_to_child, int *child_to_parent) {
+  
+  if (write(parent_to_child[1], "ping", 4) != 4) {
+    printf("write failed\n");
+  }
+  if (read(child_to_parent[0], buf, N) < 0) {
+    printf("read failed\n");
+  }
+  printf("%d: received %s\n", getpid(), buf);
+}
+
+int
+main(int argc, char *argv[])
+{
+  int parent_to_child[2];
+  int child_to_parent[2];
+
+  int pid;
+
+  if (pipe(parent_to_child) < 0 || pipe(child_to_parent) < 0) {
+    printf("pipe failed\n");
+  }
+  if ((pid = fork()) < 0) {
+    printf("fork failed\n");
+  }
+  if (pid == 0) {
+    pong(parent_to_child, child_to_parent);
+  } else {
+    ping(parent_to_child, child_to_parent);
+  }
+  
+  exit(0);
 }

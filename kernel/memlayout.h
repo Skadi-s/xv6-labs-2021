@@ -29,6 +29,10 @@
 #define E1000_IRQ 33
 #endif
 
+#ifdef LAB_NET
+#define E1000_IRQ 33
+#endif
+
 // core local interruptor (CLINT), which contains the timer.
 #define CLINT 0x2000000L
 #define CLINT_MTIMECMP(hartid) (CLINT + 0x4000 + 8*(hartid))
