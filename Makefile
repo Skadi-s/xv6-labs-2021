@@ -49,20 +49,16 @@ OBJS += \
 	$K/vmcopyin.o
 endif
 
-ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
-OBJS += \
-	$K/stats.o\
+# OBJS += \
+# 	$K/stats.o\
 	$K/sprintf.o
-endif
 
 
-ifeq ($(LAB),net)
 OBJS += \
 	$K/e1000.o \
 	$K/net.o \
 	$K/sysnet.o \
 	$K/pci.o
-endif
 
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
@@ -104,10 +100,8 @@ CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I.
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-
-ifeq ($(LAB),net)
 CFLAGS += -DNET_TESTS_PORT=$(SERVERPORT)
-endif
+
 
 ifdef KCSAN
 CFLAGS += -DKCSAN
@@ -146,7 +140,9 @@ tags: $(OBJS) _init
 
 ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
 
+ifeq ($(LAB),$(filter $(LAB), lock))
 ULIB += $U/statistics.o
+endif
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -201,8 +197,10 @@ UPROGS=\
 	$U/_trace\
 	$U/_mmaptest\
 	$U/_symlinktest\
+	$U/_nettests\
 
-ifeq ($(LAB),$(filter $(LAB), pgtbl lock))
+
+ifeq ($(LAB),$(filter $(LAB), lock))
 UPROGS += \
 	$U/_stats
 endif
@@ -241,10 +239,9 @@ barrier: notxv6/barrier.c
 	gcc -o barrier -g -O2 $(XCFLAGS) notxv6/barrier.c -pthread
 endif
 
-ifeq ($(LAB),pgtbl)
 UPROGS += \
 	$U/_pgtbltest
-endif
+
 
 ifeq ($(LAB),lock)
 UPROGS += \
@@ -252,17 +249,9 @@ UPROGS += \
 	$U/_bcachetest
 endif
 
-ifeq ($(LAB),fs)
 UPROGS += \
 	$U/_bigfile
-endif
 
-
-
-ifeq ($(LAB),net)
-UPROGS += \
-	$U/_nettests
-endif
 
 UEXTRA += user/xargstest.sh
 
@@ -299,11 +288,9 @@ FWDPORT = $(shell expr `id -u` % 5000 + 25999)
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
-
-ifeq ($(LAB),net)
 QEMUOPTS += -netdev user,id=net0,hostfwd=udp::$(FWDPORT)-:2000 -object filter-dump,id=net0,netdev=net0,file=packets.pcap
 QEMUOPTS += -device e1000,netdev=net0,bus=pcie.0
-endif
+
 
 qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
@@ -315,7 +302,6 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
-ifeq ($(LAB),net)
 # try to generate a unique port for the echo server
 SERVERPORT = $(shell expr `id -u` % 5000 + 25099)
 
@@ -324,7 +310,6 @@ server:
 
 ping:
 	python3 ping.py $(FWDPORT)
-endif
 
 ##
 ##  FOR testing lab grading script
