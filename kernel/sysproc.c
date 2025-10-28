@@ -138,9 +138,7 @@ sys_trace(void)
       return -1;
     }
     struct proc *p = myproc();
-    acquire(&p->lock);
     p->tracemask = mask;
-    release(&p->lock);
     return 0;
 }
 

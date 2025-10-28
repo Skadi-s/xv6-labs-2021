@@ -194,6 +194,7 @@ UPROGS=\
 	$U/_xargs\
 	$U/_uptime\
 	$U/_sysinfo\
+	$U/_sysinfotest\
 	$U/_trace\
 	$U/_mmaptest\
 	$U/_symlinktest\
